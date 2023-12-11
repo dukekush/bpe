@@ -1,3 +1,6 @@
+attack_pose/
+bpe-datasets/
+training_cache/
 # Compiled source #
 ###################
 *.com
