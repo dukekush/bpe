@@ -74,7 +74,7 @@ tensorboard-data-server==0.7.2
 threadpoolctl==3.2.0
 torch==2.1.1
 torch-tb-profiler==0.4.3
-tornado==6.4
+tornado==6.2
 tqdm==4.66.1
 traitlets==5.14.0
 tslearn==0.6.2
