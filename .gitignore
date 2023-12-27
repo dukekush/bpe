@@ -1,3 +1,5 @@
+*.pem
+OLD/
 *.mp4
 attack_pose/
 bpe-datasets/
