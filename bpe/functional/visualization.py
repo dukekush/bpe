@@ -248,10 +248,14 @@ def video_out_with_imageio(output_path: str, width: int, height: int,
         # get colors for each joint to visialize which body parts disagree
         color_per_joint = get_colors_per_joint(motion_similarity_per_window, percentage_processed, thresh)
         if frame_seq1 is not None:
-            draw_seq(canvas, frame_seq1, color_per_joint, left_padding=left_padding, left_position=True,
+            # draw_seq(canvas, frame_seq1, color_per_joint, left_padding=left_padding, left_position=True,
+            #          is_connected_joints=is_connected_joints)
+            draw_seq(canvas, frame_seq1, color_per_joint, left_padding=left_padding,
                      is_connected_joints=is_connected_joints)
         if frame_seq2 is not None:
-            draw_seq(canvas, frame_seq2, color_per_joint, left_padding=left_padding, left_position=False,
+            # draw_seq(canvas, frame_seq2, color_per_joint, left_padding=left_padding, left_position=False,
+            #          is_connected_joints=is_connected_joints)
+            draw_seq(canvas, frame_seq2, color_per_joint, left_padding=left_padding,
                      is_connected_joints=is_connected_joints)
 
         put_similarity_score_in_video(canvas, motion_similarity_per_window, percentage_processed, thresh)
@@ -259,6 +263,6 @@ def video_out_with_imageio(output_path: str, width: int, height: int,
         if is_debug and frame_idx == 500:
             break
 
-        out_video_writer.append_data(canvas.to_string())
+        out_video_writer.append_data(canvas.tobytes())
 
     out_video_writer.close()
