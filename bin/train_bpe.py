@@ -74,9 +74,9 @@ def main():
     train_dataset = SARADataset('train', config)
     val_dataset = SARADataset('test', config)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers,
-                              worker_init_fn=lambda _: np.random.seed(), pin_memory=True)
+                              worker_init_fn=0, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers,
-                            worker_init_fn=lambda _: np.random.seed(), pin_memory=True)
+                            worker_init_fn=0, pin_memory=True)
 
     # validation is performed in the middle of training epoch
     # as a single step, rather then a full val data pass
