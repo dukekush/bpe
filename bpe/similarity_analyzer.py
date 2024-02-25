@@ -11,9 +11,10 @@ from bpe.model import networks_bpe
 
 
 class SimilarityAnalyzer:
-    def __init__(self, config, model_path):
+    def __init__(self, config, model_path, verbose=False):
         self.body_parts = config.default_body_parts
         self.body_parts_name = config.body_part_names
+        self.verbose = verbose
 
         # get similarity model
         self.motion_encoders = self._get_motion_model(config, model_path)
@@ -21,22 +22,25 @@ class SimilarityAnalyzer:
 
     def _get_motion_model(self, config, model_path):
         # define network
-        print('Building model')
+        if self.verbose:
+            print('Building model')
         network = networks_bpe.AutoEncoder_bpe(config)
         # load pretrained model
-        network.load_state_dict(self.load_ckpt_from_path(model_path, device=config.device))
+        network.load_state_dict(self.load_ckpt_from_path(model_path, device=config.device, verbose=self.verbose))
         # extract only motion encoders
         network = network.mot_encoders
         # move to appropriate device
         network.to(config.device)
         network.eval()
-        print('Model is ready')
+        if self.verbose:
+            print('Model is ready')
         return network
 
     @staticmethod
-    def load_ckpt_from_path(model_path: str, device: str = "gpu") -> OrderedDict:
+    def load_ckpt_from_path(model_path: str, device: str = "gpu", verbose: bool = False) -> OrderedDict:
         assert os.path.exists(model_path)
-        print('Loading model from {}'.format(model_path))
+        if verbose:
+            print('Loading model from {}'.format(model_path))
         state_dict = torch.load(model_path, map_location=device)
 
         # TODO: Only for Old ckpts. Deprecate later
