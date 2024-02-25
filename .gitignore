@@ -4,6 +4,10 @@ OLD/
 attack_pose/
 bpe-datasets/
 training_cache/
+*.xlsx
+*.csv
+*.json
+
 # Compiled source #
 ###################
 *.com
@@ -23,7 +27,7 @@ training_cache/
 *.iso
 *.jar
 *.rar
-*.tar
+# *.tar
 *.zip
  
 # Logs and databases #
