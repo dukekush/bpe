@@ -7,7 +7,6 @@ import os
 import math
 import imageio as io
 
-
 os.chdir('/Users/jniedziela/Developer/master/bpe/')
 
 from bpe import Config
