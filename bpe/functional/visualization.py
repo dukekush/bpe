@@ -39,17 +39,19 @@ def get_colors_per_joint(motion_similarity_per_window, percentage_processed, thr
     '''
     for bp_idx, bp in enumerate(motion_similarity_per_window[temporal_idx].keys()):
         similarity = round(motion_similarity_per_window[temporal_idx][bp], 2)
-        cur_joint_color = (0, 255, 0) if similarity > thresh else (255, 0, 0)
+        cur_joint_color_left_side = (255, 255, 0) if similarity > thresh else (255, 0, 0)
+        cur_joint_color_right_side_torso = (0, 255, 0) if similarity > thresh else (255, 0, 0)
+
         if bp == 'torso':
-            color_per_joint[[0, 1, 8]] = cur_joint_color
+            color_per_joint[[0, 1, 8]] = cur_joint_color_right_side_torso
         elif bp == 'ra':
-            color_per_joint[[2, 3, 4]] = cur_joint_color
+            color_per_joint[[2, 3, 4]] = cur_joint_color_right_side_torso
         elif bp == 'la':
-            color_per_joint[[5, 6, 7]] = cur_joint_color
+            color_per_joint[[5, 6, 7]] = cur_joint_color_left_side
         elif bp == 'rl':
-            color_per_joint[[9, 10, 11]] = cur_joint_color
+            color_per_joint[[9, 10, 11]] = cur_joint_color_right_side_torso
         elif bp == 'll':
-            color_per_joint[[12, 13, 14]] = cur_joint_color
+            color_per_joint[[12, 13, 14]] = cur_joint_color_left_side
         else:
             raise KeyError('Wrong body part key')
     return color_per_joint
@@ -107,6 +109,7 @@ def draw_seq(img, frame_seq, color_per_joint, left_padding=0, is_connected_joint
         cv2.circle(img, (left_padding + int(x_coord), int(y_coord)), stickwidth, color, 3)
 
 
+
 def draw_connected_joints(canvas, joints, colors, left_padding):
     # connect joints with lines
     # ([nose, neck,
@@ -116,7 +119,11 @@ def draw_connected_joints(canvas, joints, colors, left_padding):
     # right_hip, right_knee, right_ankle,
     # left_hip, left_knee, left_ankle,])
 
-    limb_seq = [[0, 1], [1, 8], [2, 3], [3, 4], [5, 6], [6, 7], [9, 10], [10, 11], [12, 13], [13, 14]]
+    # view from left side -- it was default (left connections were on top of right)
+    # limb_seq = [[0, 1], [1, 8], [2, 3], [3, 4], [5, 6], [6, 7], [9, 10], [10, 11], [12, 13], [13, 14]]
+    # view from right side -- right side connections are on top of left -- modification
+    limb_seq = [[0, 1], [1, 8], [5, 6], [6, 7], [2, 3], [3, 4], [12, 13], [13, 14], [9, 10], [10, 11]]
+
 
     stickwidth = 2
     # stickwidth = 1 # setting for paper
