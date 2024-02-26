@@ -77,13 +77,31 @@ def config_parser():
 
 
 class VolleyballAnalyser:
-    def __init__(self, vid1_pose_file, vid2_pose_file, window_size=30, stride=30, translation_mappings_path='attack_pose_data/translation_mappings.json'):
+    def __init__(self, vid1_pose_file, vid2_pose_file, window_size=30, stride_size=30, translation_mappings_path='attack_pose_data/translation_mappings.json'):
+        '''
+        Constructs all the necessary attributes for the VolleyballAnalyser object.
+        
+        Parameters:
+        -----------
+        vid1_pose_file: str
+            Path to the first video's pose excel file.
+        vid2_pose_file: str
+            Path to the second video's pose excel file.
+        window_size: int, default=30
+            Window size used for similarity prediction.
+        stride: int, default=30
+            Stride size used for similarity prediction.
+        translation_mappings_path: str, default='attack_pose_data/translation_mappings.json'
+            Path to the translation mappings file.
+        '''
         self.args = config_parser()
         self.config = Config(self.args)
         self.similarity_analyzer = SimilarityAnalyzer(self.config, self.args.model_path)
 
+        assert window_size >= 14, 'Window size must be greater than 14'
+        assert stride_size >= 1, 'Stride must be greater than 0'
         self.args.video_sampling_window_size = window_size
-        self.args.video_sampling_stride = stride
+        self.args.video_sampling_stride = stride_size
         
         self.vid1_pose_file = vid1_pose_file.split('/')[-1]
         self.vid2_pose_file = vid2_pose_file.split('/')[-1]
@@ -127,25 +145,42 @@ class VolleyballAnalyser:
 
 
     def set_window_size(self, window_size):
+        '''
+        Sets the window size for the similarity prediction.
+        
+        Parameters:
+        window_size: int
+            Window size used for similarity prediction.
+        '''
         self.args.video_sampling_window_size = window_size
-        self.motion_similarity_per_window = self._update_similarities()
-        self.show_analysed_frames(self.seq1.shape[-1], self.args.window_size, self.args.video_sampling_stride)
-        self.show_analysed_frames(self.seq2.shape[-1], self.args.window_size, self.args.video_sampling_stride)
+        self._update_similarities()
 
     
     def set_stride_size(self, stride_size):
+        '''
+        Sets the stride size for the similarity prediction.
+        
+        Parameters:
+        stride_size: int
+            Stride size used for similarity prediction.
+        '''
         self.args.video_sampling_stride = stride_size
-        self.motion_similarity_per_window = self._update_similarities()
-        self.show_analysed_frames(self.seq1.shape[-1], self.args.window_size, self.args.video_sampling_stride)
-        self.show_analysed_frames(self.seq2.shape[-1], self.args.window_size, self.args.video_sampling_stride)
+        self._update_similarities()
 
     
     def set_window_stride_size(self, window_size, stride_size):
+        '''
+        Sets the window and stride size for the similarity prediction.
+        
+        Parameters:
+        window_size: int
+            Window size used for similarity prediction.
+        stride_size: int
+            Stride size used for similarity prediction.
+        '''
         self.args.video_sampling_window_size = window_size
         self.args.video_sampling_stride = stride_size
-        self.motion_similarity_per_window = self._update_similarities()
-        self.show_analysed_frames(self.seq1.shape[-1], self.args.window_size, self.args.video_sampling_stride)
-        self.show_analysed_frames(self.seq2.shape[-1], self.args.window_size, self.args.video_sampling_stride)
+        self._update_similarities()
 
 
     def get_embeddings(self, seq, window_size, stride):
@@ -171,7 +206,20 @@ class VolleyballAnalyser:
     def draw_frame(self, seq, frame_idx, width=1920, height=1080):
         '''
         Draws the frame in the sequence at frame_idx.
-        If motion similarity is calculated, draws the joints in different colors depending on the similarity.
+
+        Parameters:
+        seq: np.ndarray
+            The sequence of poses.
+        frame_idx: int
+            The index of the frame to draw.
+        width: int, default=1920
+            Width of the output frame.
+        height: int, default=1080
+            Height of the output frame.
+
+        Returns:
+        np.ndarray
+            The frame with the stick figure drawn on it. To display it, use matplotlib.pyplot.imshow(frame).
         '''
         
         total_seq_len = seq.shape[-1] 
@@ -213,6 +261,21 @@ class VolleyballAnalyser:
     
     
     def create_stick_figure_comparison_video(self, out_path, fps=30, out_width=1920, out_height=1080, memory=None):
+        '''
+        Creates a video comparing the two sequences.
+        
+        Parameters:
+        out_path: str
+            Path to the output video file.
+        fps: int, default=30
+            Frames per second.
+        out_width: int, default=1920
+            Width of the output video.
+        out_height: int, default=1080
+            Height of the output video. Final video will be 2x this height, as it will contain two sequences on top of each.
+        memory: int, default=None
+            If not None, the video will be created in memory, and the frames will be added to the total canvas every memory-th frame.
+        '''
         total_vid_len = min(self.seq1.shape[-1], self.seq2.shape[-1])
 
         s1 = self.seq1[:, :, :total_vid_len]
@@ -228,6 +291,17 @@ class VolleyballAnalyser:
 
     def show_analysed_frames(self, seq_length=None, window_size=None, stride_size=None):
         '''
+        Prints the ranges of frames that were analysed.
+
+        Parameters:
+        seq_length: int, default=None
+            Length of the sequence. If None, will use the length of the first sequence.
+        window_size: int, default=None
+            Window size used for similarity prediction. If None, will use the window size currently set in the class.
+        stride_size: int, default=None
+            Stride size used for similarity prediction. If None, will use the stride currently set in the class.
+        
+        Example:
         >>> show_analysed_frames(60, 30, 15)
         Range =  3
         From: 0  To:  30
@@ -249,6 +323,24 @@ class VolleyballAnalyser:
 class VolleyballAttackAnalyser(VolleyballAnalyser):
     def __init__(self, vid1_pose_file, vid2_pose_file, window_size=30, stride=30, translation_mappings_path='attack_pose_data/translation_mappings.json', num_attack_frames=30):
         super().__init__(vid1_pose_file, vid2_pose_file, window_size, stride, translation_mappings_path)
+        '''
+        Constructs all the necessary attributes for the VolleyballAnalyser object.
+        
+        Parameters:
+        -----------
+        vid1_pose_file: str
+            Path to the first video's pose excel file.
+        vid2_pose_file: str
+            Path to the second video's pose excel file.
+        window_size: int, default=30
+            Window size used for similarity prediction.
+        stride: int, default=30
+            Stride size used for similarity prediction.
+        translation_mappings_path: str, default='attack_pose_data/translation_mappings.json'
+            Path to the translation mappings file.
+        num_attack_frames: int, default=30
+            Number of frames around the attack to cut the sequences to.
+        '''
         self.num_attack_frames = num_attack_frames
         self._get_attack_frame_numbers()
         self._cut_sequences_around_attack()
