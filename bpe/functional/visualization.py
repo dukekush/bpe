@@ -79,6 +79,10 @@ def put_similarity_score_in_video(img, motion_similarity_per_window, percentage_
     #                color, 1)
 
 
+def put_filename_in_video(img, filename):
+    cv2.putText(img, filename, (150, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+
 def preprocess_sequence(seq):
     for idx, seq_item in enumerate(seq):
         if len(seq_item) == 0:
