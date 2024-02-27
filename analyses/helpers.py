@@ -15,8 +15,8 @@ from bpe.similarity_analyzer import SimilarityAnalyzer
 from bpe.functional.visualization import get_colors_per_joint, put_similarity_score_in_video, preprocess_sequence, draw_seq, draw_frame
 
 
-DATA_DIR = 'bpe-datasets/SARA_released'
-MODEL_PATH = 'pretrained_model/model/model_best.pth.tar'
+DATA_DIR = 'model_data/'
+MODEL_PATH = 'model_data/pretrained_model/model/model_best.pth.tar'
 
 
 def config_parser():
