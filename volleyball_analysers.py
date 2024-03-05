@@ -139,9 +139,11 @@ class VolleyballAnalyser:
         if ratio > 1.3:
             self.vid1 = self.vid1.iloc[::2, :]
             self.vid1.reset_index(drop=True, inplace=True)
+            self.vid1['Frame'] = self.vid1.index
         elif ratio < 0.7:
             self.vid2 = self.vid2.iloc[::2, :]
             self.vid2.reset_index(drop=True, inplace=True)
+            self.vid2['Frame'] = self.vid2.index
 
 
     def set_window_size(self, window_size):
@@ -349,8 +351,8 @@ class VolleyballAttackAnalyser(VolleyballAnalyser):
     def _get_attack_frame_numbers(self):
         assert 'phase' in self.vid1.columns, 'No "phase" column in the first pose file'
         assert 'phase' in self.vid2.columns, 'No "phase" column in the second pose file'
-        a1 = int(self.vid1[self.vid1.phase == 'attack'].index.values.mean())
-        a2 = int(self.vid2[self.vid2.phase == 'attack'].index.values.mean())
+        a1 = int(self.vid1[self.vid1.phase == 'attack'].frame_number.values.mean())
+        a2 = int(self.vid2[self.vid2.phase == 'attack'].frame_number.values.mean())
         self.attack_frames = [a1, a2]
 
 
