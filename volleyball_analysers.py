@@ -7,6 +7,7 @@ import os
 import math
 import imageio as io
 import json
+import matplotlib.pyplot as plt
 
 from config import *
 
@@ -465,3 +466,113 @@ def pose_df_to_dict(pose_df):
 			}
 		) 
 	return annot
+
+
+class VideoGenerator:
+    translation_mappings = json.load(open('attack_pose_data/translation_mappings.json'))
+    colors_per_joint = np.array([
+        [255, 255, 255],  # nose
+        [255, 255, 255],  # neck
+        [0, 0, 255],  # right shoulder
+        [0, 0, 255],  # right elbow
+        [0, 0, 255],  # right wrist
+        [255, 0, 0],  # left shoulder
+        [255, 0, 0],  # left elbow
+        [255, 0, 0],  # left wrist
+        [255, 255, 255],  # mid hip
+        [0, 0, 255],  # right hip
+        [0, 0, 255],  # right knee
+        [0, 0, 255],  # right ankle
+        [255, 0, 0],  # left hip
+        [255, 0, 0],  # left knee
+        [255, 0, 0],  # left ankle
+    ])
+
+
+    def __init__(self, pose_filename) -> None:
+        self.pose_filename = pose_filename
+        self.pose_data = self._read_pose_excel()
+        self.pose_seq = self._load_seq_from_df(self.pose_data)
+
+    def _read_pose_excel(self):
+        return pd.read_excel(self.pose_filename, index_col=0)
+    
+    def _load_seq_from_df(self, pose_df):
+        bad_columns = [col for col in pose_df.columns if col not in self.translation_mappings]
+        assert bad_columns == [], f'Some columns are not in the translation mappings{bad_columns}'
+        pose_df.columns = [self.translation_mappings[col] for col in pose_df.columns.values if col in self.translation_mappings]
+        annot = pose_df_to_dict(pose_df)
+        seq = annotations2motion(15, annot['annotations'], scale=1)
+        seq = preprocess_sequence(seq)
+        return seq
+    
+    def _get_frame(self, frame_idx):
+        return self.pose_data[self.pose_data.frame_number == frame_idx]
+
+    def _scale_sequence(self, seq, maxw=1920, maxh=1080, buffer=50):
+        ratio = min((maxw - buffer) / seq[:, 0, :].max(), (maxh - buffer) / seq[:, 1, :].max())
+        return seq * ratio
+    
+    def _draw_frame(self, frame_idx, width=1920, height=1080):
+        '''
+        Draws the frame in the sequence at frame_idx.
+
+        Parameters:
+        seq: np.ndarray
+            The sequence of poses.
+        frame_idx: int
+            The index of the frame to draw.
+        width: int, default=1920
+            Width of the output frame.
+        height: int, default=1080
+            Height of the output frame.
+
+        Returns:
+        np.ndarray
+            The frame with the stick figure drawn on it. To display it, use matplotlib.pyplot.imshow(frame).
+        '''
+        seq = self.pose_seq
+        frame = self._scale_sequence(seq, width, height)[:, :, frame_idx]
+        canvas = np.ones((height, width, 3), np.uint8) * 0
+
+        draw_seq(canvas, frame, self.colors_per_joint, is_connected_joints=True)
+
+        return canvas
+    
+    def show_frame(self, frame_idx, width=1920, height=1080):
+        '''
+        Shows the frame with the stick figure drawn on it.
+
+        Parameters:
+        frame_idx: int
+            The index of the frame to draw.
+        width: int, default=1920
+            Width of the output frame.
+        height: int, default=1080
+            Height of the output frame.
+        '''
+        frame = self._draw_frame(frame_idx, width, height)
+        plt.imshow(frame)
+        plt.show()
+    
+    def _get_video_frames(self, filename, width=1920, height=1080, memory=None):
+        seq = self.pose_seq
+        all_frames = []
+        total_canvas = np.ones((height, width, 3), np.uint8) * 0
+
+        for i, _ in enumerate(seq.transpose(2, 0, 1)):
+            canvas = self._draw_frame(i, width, height)
+
+            put_filename_in_video(canvas, filename)
+            
+            if memory is not None:
+                if i % memory == 1:
+                    total_canvas += canvas
+
+            all_frames.append(total_canvas + canvas)
+
+        return all_frames
+    
+    def create_stick_video(self, out_file, fps=30, width=1920, height=1080, memory=None):
+        s = self._get_video_frames(filename=self.pose_filename, width=width, height=height, memory=memory)
+        io.mimwrite(out_file, s, fps=fps)
