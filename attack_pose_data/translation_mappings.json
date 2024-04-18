@@ -76,5 +76,6 @@
     "aanloop":"runup",
     "spronghoek":"jump_angle",
     "positie_tov_bal":"position_to_ball",
-    "slagarm_hoek":"hit_arm_angle"
+    "slagarm_hoek":"hit_arm_angle",
+    "fps":"fps"
 }
