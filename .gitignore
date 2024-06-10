@@ -3,6 +3,7 @@ Jakub_Videos/
 *.pem
 OLD/
 *.mp4
+*.mov
 attack_pose/
 bpe-datasets/
 training_cache/
