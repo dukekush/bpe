@@ -8,6 +8,9 @@ import math
 import imageio as io
 import json
 import matplotlib.pyplot as plt
+import ruptures as rpt
+from tslearn.metrics import dtw_path, dtw
+from sklearn.metrics.pairwise import cosine_similarity
 
 from config import *
 
@@ -576,3 +579,265 @@ class VideoGenerator:
     def create_stick_video(self, out_file, fps=30, width=1920, height=1080, memory=None):
         s = self._get_video_frames(filename=self.pose_filename, width=width, height=height, memory=memory)
         io.mimwrite(out_file, s, fps=fps)
+
+
+
+
+DATA_DIR = '../bpe/attack_pose_data/'
+EXCEL_DATA_DIR = '../bpe/attack_pose_data/excel_files/'
+MAPPINGS = json.load(open(DATA_DIR+'translation_mappings.json'))
+
+
+def aggregate_numeric_column(df, column_name, original_fps, target_fps):
+    """
+    Aggregates a single numeric column in a DataFrame based on video frame rates.
+    
+    Parameters:
+    - df: DataFrame containing the video data.
+    - column_name: The name of the numeric column to aggregate.
+    - original_fps: The original frame rate of the video data.
+    - target_fps: The target frame rate for aggregation.
+    
+    Returns:
+    - A DataFrame with the aggregated column.
+    - A dictionary mapping the original index to the new index.
+    """
+    # Ensure the column exists in the DataFrame
+    if column_name not in df.columns:
+        raise ValueError(f"Column '{column_name}' not found in DataFrame.")
+    
+    # Calculate the number of frames to aggregate to match the target frame rate
+    factor = original_fps / target_fps
+    if factor < 1:
+        raise ValueError("Target FPS must be less than or equal to original FPS.")
+    
+    index_mapping = dict(zip(df.index, df.index // factor))
+
+    # Aggregate the specified column
+    aggregated_series = df[column_name].groupby(df.index // factor).mean()
+    
+    # Create a new DataFrame to return
+    aggregated_df = pd.DataFrame(aggregated_series, columns=[column_name])
+
+    return aggregated_df, index_mapping
+
+def aggregate_all_numeric_columns(df, original_fps, target_fps):
+    """
+    Aggregates all numeric columns in a DataFrame based on video frame rates.
+    
+    Parameters:
+    - df: DataFrame containing the video data.
+    - original_fps: The original frame rate of the video data.
+    - target_fps: The target frame rate for aggregation.
+    
+    Returns:
+    - A DataFrame with the aggregated columns (returns only numeric columns).
+    - A dictionary mapping the original index to the new index.
+    """
+    aggregated_dfs = []
+    index_mappings = []
+    
+    for column_name in df.select_dtypes(include=[np.number]).columns:
+        # if df[column_name].dtype == np.float64:
+        aggregated_df, index_mapping = aggregate_numeric_column(df, column_name, original_fps, target_fps)
+        aggregated_dfs.append(aggregated_df)
+        index_mappings.append(index_mapping)
+    
+    return pd.concat(aggregated_dfs, axis=1), index_mappings
+
+
+def normalize_keypoints_relative_to_bbox(df, x_col, y_col):
+    """
+    Normalize keypoints to a [0, 1] range relative to the bounding box encompassing all keypoints.
+
+    Parameters:
+    - df: pandas DataFrame with 'x' and 'y' columns for keypoint coordinates.
+
+    Returns:
+    - df with added 'x_normalized' and 'y_normalized' columns.
+    """
+    x_min, x_max = df[x_col].min(), df[x_col].max()
+    y_min, y_max = df[y_col].min(), df[y_col].max()
+
+    x = (df[x_col] - x_min) / (x_max - x_min)
+    y = (df[y_col] - y_min) / (y_max - y_min)
+    
+    return x, y
+
+
+def aggregate_phases(df, original_fps, target_fps):
+    def aggfunc(group):
+        if 'attack' in group.values:
+            return 'attack'
+        else:
+            # Compute the mode with pandas.Series.mode, which handles non-numeric data
+            mode_values = group.mode()
+            return mode_values.iloc[0] if not mode_values.empty else None
+        
+    factor = original_fps / target_fps
+    if factor < 1:
+        raise ValueError("Target FPS must be less than or equal to original FPS.")
+    
+    df['index'] = df.index // factor
+        
+    return df.groupby('index')['phase'].agg(aggfunc)
+
+
+def compute_dtw_cosine_similarity(sequence1, sequence2):
+    """
+    Computes the cosine similarity between two sequences using Dynamic Time Warping (DTW).
+
+    Parameters:
+    - sequence1: The first sequence.
+    - sequence2: The second sequence.
+
+    Returns:
+    - The cosine similarity between the two sequences.
+    """
+    # Compute DTW path
+    path, _ = dtw_path(sequence1.reshape(-1, 1), sequence2.reshape(-1, 1))
+
+    # Extract aligned sequences
+    aligned_sequence1 = [sequence1[idx] for idx, _ in path]
+    aligned_sequence2 = [sequence2[idx] for _, idx in path]
+
+    # Convert aligned sequences to NumPy arrays
+    aligned_sequence1 = np.array(aligned_sequence1)
+    aligned_sequence2 = np.array(aligned_sequence2)
+
+    # Reshape sequences for cosine similarity calculation
+    aligned_sequence1 = aligned_sequence1.reshape(1, -1)
+    aligned_sequence2 = aligned_sequence2.reshape(1, -1)
+
+    # Compute cosine similarity
+    cos_sim = cosine_similarity(aligned_sequence1, aligned_sequence2)[0][0]
+
+    return cos_sim
+
+
+def load_pose_data(pose_df_path, mappings):
+    df = pd.read_excel(pose_df_path, index_col=0)
+    df.rename(columns=mappings, inplace=True)
+    fps = df['fps'].values[0]
+    return df, fps
+
+
+def get_normalised_kepoints(aggregated_pose_df, joints):
+    normalised_keypoints_x = np.array([normalize_keypoints_relative_to_bbox(aggregated_pose_df, joint + '_x', joint+'_y')[0] for joint in joints])
+    normalised_keypoints_y = np.array([(normalize_keypoints_relative_to_bbox(aggregated_pose_df, joint + '_x', joint+'_y')[1] - 1)*-1 for joint in joints])
+    normalised_keypoints_all = np.concatenate([normalised_keypoints_x, normalised_keypoints_y], axis=0)
+    return normalised_keypoints_all.T, normalised_keypoints_x.T, normalised_keypoints_y.T
+
+
+def get_breakpoints(normalised_keypoints, num_phases):
+    bkpts_algorithm = rpt.KernelCPD(kernel="rbf", min_size=14)
+    bkpts = bkpts_algorithm.fit_predict(normalised_keypoints, n_bkps=num_phases - 1)
+    return bkpts
+
+
+def preprocess_df_for_bpe(aggregated_pose_df, config):
+    annot = pose_df_to_dict(aggregated_pose_df)
+    seq = annotations2motion(config.unique_nr_joints, annot['annotations'], scale=1)
+    seq = preprocess_sequence(seq)
+    return seq
+
+
+def get_embeddings(seq, window_size, stride, similarity_analyzer, mean_pose_bpe, std_pose_bpe, config, args):
+    seq = preprocess_motion2d_rc(seq, mean_pose_bpe, std_pose_bpe, use_all_joints_on_each_bp=args.use_all_joints_on_each_bp)
+    seq = seq.to(config.device)
+    seq_features = similarity_analyzer.get_embeddings(seq, video_window_size=window_size, video_stride=stride)
+    return seq_features
+
+
+def compute_dtw_cosine_similarity_per_phase(seq_ref, seq_comp, breakpoints_ref, breakpoints_comp, config, args, similarity_analyzer, mean_pose_bpe, std_pose_bpe):
+    start_ref = 0
+    start_comp = 0
+    sims_dtw = {}
+    sims_dtw_cos = {}
+    for i, (end_ref, end_comp) in enumerate(zip(breakpoints_ref, breakpoints_comp)):
+        length_ref = end_ref - start_ref
+        length_comp = end_comp - start_comp
+        seq_ref_features = get_embeddings(seq_ref[:, :, start_ref:end_ref], length_ref, length_ref, similarity_analyzer, mean_pose_bpe, std_pose_bpe, config, args)
+        seq_comp_features = get_embeddings(seq_comp[:, :, start_comp:end_comp], length_comp, length_comp, similarity_analyzer, mean_pose_bpe, std_pose_bpe, config, args)
+        start_ref = end_ref 
+        start_comp = end_comp
+
+        sims_dtw[f'phase_{i}'] = {}
+        sims_dtw_cos[f'phase_{i}'] = {}
+        for bp_i, bp in enumerate(config.body_part_names):
+            sims_dtw[f'phase_{i}'][bp] = dtw(seq_ref_features[0][bp_i], seq_comp_features[0][bp_i])
+            sims_dtw_cos[f'phase_{i}'][bp] = compute_dtw_cosine_similarity(seq_ref_features[0][bp_i], seq_comp_features[0][bp_i])
+
+    return sims_dtw, sims_dtw_cos
+
+
+def flatten_results(results):
+    rows = []
+    for filename, phases in results.items():
+        row = {'filename': filename}
+        for phase, attributes in phases.items():
+            for key, value in attributes.items():
+                row[f'{phase}_{key}'] = value
+        rows.append(row)
+    return rows
+
+
+def reindex(bkpts, index):
+    result_reindexed = []
+    for bkp in bkpts:
+        for k,v in index.items():
+            if bkp == v:
+                result_reindexed.append(k)
+                break
+    return result_reindexed
+
+
+def compare_videos(pose_reference_df_path, pose_comparison_df_path, NUM_PHASES, joints, config, args, similarity_analyzer, mean_pose_bpe, std_pose_bpe):
+    mappings = json.load(open('attack_pose_data/translation_mappings.json'))
+
+    pose_reference_df, reference_fps = load_pose_data(pose_reference_df_path, mappings)
+    pose_comparison_df, comparison_fps = load_pose_data(pose_comparison_df_path, mappings)
+
+    aggregated_pose_reference_df, _ = aggregate_all_numeric_columns(pose_reference_df, reference_fps, reference_fps)
+    aggregated_pose_comparison_df, index = aggregate_all_numeric_columns(pose_comparison_df, comparison_fps, comparison_fps)
+
+    normalised_keypoints_ref, _, _ = get_normalised_kepoints(aggregated_pose_reference_df, joints)
+    normalised_keypoints_comp, _, _ = get_normalised_kepoints(aggregated_pose_comparison_df, joints)
+
+    breakpoints_ref = get_breakpoints(normalised_keypoints_ref, NUM_PHASES)
+    breakpoints_comp = get_breakpoints(normalised_keypoints_comp, NUM_PHASES)
+
+    breakpoints_comp_reindexed = reindex(breakpoints_comp, index[0])
+
+    seq_ref = preprocess_df_for_bpe(aggregated_pose_reference_df, config)
+    seq_comp = preprocess_df_for_bpe(aggregated_pose_comparison_df, config)
+
+    sims_dtw, sims_dtw_cos = compute_dtw_cosine_similarity_per_phase(seq_ref, seq_comp, breakpoints_ref, breakpoints_comp, config, args, similarity_analyzer, mean_pose_bpe, std_pose_bpe)
+
+    return sims_dtw, sims_dtw_cos, breakpoints_ref, breakpoints_comp_reindexed
+
+
+def bbox_normalize_joint_coordinates(df):
+
+    # Extract all x and y columns
+    x_columns = [col for col in df.columns if col.endswith('_x')]
+    y_columns = [col for col in df.columns if col.endswith('_y')]
+
+    # Compute the max and min values for x and y across all joints
+    max_x = df[x_columns].values.max()
+    min_x = df[x_columns].values.min()
+    max_y = df[y_columns].values.max()
+    min_y = df[y_columns].values.min()
+
+    # Define a function to normalize values
+    def normalize(value, min_val, max_val):
+        return (value - min_val) / (max_val - min_val)
+    
+    # Normalize all x and y coordinates
+    for col in x_columns:
+        df.loc[:, col + '_normalized'] = df[col].apply(normalize, args=(min_x, max_x))
+    
+    for col in y_columns:
+        df.loc[:, col + '_normalized'] = df[col].apply(normalize, args=(min_y, max_y))
+
+    return df
