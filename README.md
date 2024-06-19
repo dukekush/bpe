@@ -12,6 +12,8 @@
         notebooks used in development of phase comparison, development of functions for data preprocessing. Also contains notebook for final analysis of breakpoints.
 
 ## Important files info
+### final_comparisons.ipynb
+        Creates comparison videos for pair of files.
 ### create_stick_videos.ipynb
         Creates skeleton videos based on pose data.
 ### phases_process_scores.ipynb
