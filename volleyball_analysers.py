@@ -723,8 +723,9 @@ def load_pose_data(pose_df_path, mappings):
 
 
 def get_normalised_kepoints(aggregated_pose_df, joints):
-    normalised_keypoints_x = np.array([normalize_keypoints_relative_to_bbox(aggregated_pose_df, joint + '_x', joint+'_y')[0] for joint in joints])
-    normalised_keypoints_y = np.array([(normalize_keypoints_relative_to_bbox(aggregated_pose_df, joint + '_x', joint+'_y')[1] - 1)*-1 for joint in joints])
+    norm_df = bbox_normalize_joint_coordinates(aggregated_pose_df[[joint + '_x' for joint in joints] + [joint + '_y' for joint in joints]].copy())
+    normalised_keypoints_y = np.array([norm_df[joint + '_y_normalized'].values for joint in joints])
+    normalised_keypoints_x = np.array([norm_df[joint + '_x_normalized'].values for joint in joints])
     normalised_keypoints_all = np.concatenate([normalised_keypoints_x, normalised_keypoints_y], axis=0)
     return normalised_keypoints_all.T, normalised_keypoints_x.T, normalised_keypoints_y.T
 

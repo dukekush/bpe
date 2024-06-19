@@ -73,24 +73,6 @@ def aggregate_all_numeric_columns(df, original_fps, target_fps):
     return pd.concat(aggregated_dfs, axis=1), index_mappings
 
 
-# def normalize_keypoints_relative_to_bbox(df, x_col, y_col):
-#     """
-#     Normalize keypoints to a [0, 1] range relative to the bounding box encompassing all keypoints.
-
-#     Parameters:
-#     - df: pandas DataFrame with 'x' and 'y' columns for keypoint coordinates.
-
-#     Returns:
-#     - df with added 'x_normalized' and 'y_normalized' columns.
-#     """
-#     x_min, x_max = df[x_col].min(), df[x_col].max()
-#     y_min, y_max = df[y_col].min(), df[y_col].max()
-
-#     x = (df[x_col] - x_min) / (x_max - x_min)
-#     y = (df[y_col] - y_min) / (y_max - y_min)
-    
-#     return x, y
-
 def bbox_normalize_joint_coordinates(df):
 
     # Extract all x and y columns
