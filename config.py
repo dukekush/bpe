@@ -1,7 +1,7 @@
 # Description: Configuration file for the project
 
 # Global path to the project directory
-PROJECT_GLOBAL_PATH = '/Users/jniedziela/Developer/master/bpe/'
+PROJECT_GLOBAL_PATH = ''
 
 # Path to the data directory -- mean and std numpy files for normalization
 DATA_PATH = PROJECT_GLOBAL_PATH + 'model_data/'

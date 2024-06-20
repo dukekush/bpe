@@ -15,7 +15,7 @@ import cv2
 
 from config import *
 
-os.chdir(PROJECT_GLOBAL_PATH)
+# os.chdir(PROJECT_GLOBAL_PATH)
 
 from bpe import Config
 from bpe.functional.motion import preprocess_motion2d_rc, annotations2motion
